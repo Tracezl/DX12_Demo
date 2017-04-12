@@ -412,29 +412,29 @@ bool D3DApp::InitDirect3D()
 }
 #endif
 
-	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
-
+	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));//验证当前显卡硬件，(翻转链有关)
+	//一、创建设备实例：
 	// Try to create hardware device.
 	HRESULT hardwareResult = D3D12CreateDevice(
-		nullptr,             // default adapter
-		D3D_FEATURE_LEVEL_11_0,
-		IID_PPV_ARGS(&md3dDevice));
-
+		nullptr,             // default adapter默认显卡
+		D3D_FEATURE_LEVEL_11_0,//
+		IID_PPV_ARGS(&md3dDevice));//IID_PPV_ARGS创建COM接口对象
+	//如果创建失败，遍历显卡重新创建（双显卡）
 	// Fallback to WARP device.
 	if(FAILED(hardwareResult))
 	{
 		ComPtr<IDXGIAdapter> pWarpAdapter;
-		ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
+		ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));//遍历显卡，并存到pWarpAdapter
 
 		ThrowIfFailed(D3D12CreateDevice(
 			pWarpAdapter.Get(),
 			D3D_FEATURE_LEVEL_11_0,
 			IID_PPV_ARGS(&md3dDevice)));
 	}
-
+	// 二、设置  创建描述器：
 	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&mFence)));
-
+	//获取单个描述器内存占用大小
 	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	mDsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -442,13 +442,13 @@ bool D3DApp::InitDirect3D()
     // Check 4X MSAA quality support for our back buffer format.
     // All Direct3D 11 capable devices support 4X MSAA for all render 
     // target formats, so we only need to check quality support.
-
+	//三、检测多重采样的级别：
 	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
 	msQualityLevels.Format = mBackBufferFormat;
-	msQualityLevels.SampleCount = 4;
+	msQualityLevels.SampleCount = 4;//支持四个点采样
 	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
 	msQualityLevels.NumQualityLevels = 0;
-	ThrowIfFailed(md3dDevice->CheckFeatureSupport(
+	ThrowIfFailed(md3dDevice->CheckFeatureSupport(//检测当前显卡是否支持当前设置要求
 		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
 		&msQualityLevels,
 		sizeof(msQualityLevels)));
@@ -459,9 +459,11 @@ bool D3DApp::InitDirect3D()
 #ifdef _DEBUG
     LogAdapters();
 #endif
-
+	//四、创建命令行队列：
 	CreateCommandObjects();
+	//五、描述并创建翻转链：
     CreateSwapChain();
+	//六、创建描述器的堆栈：
     CreateRtvAndDsvDescriptorHeaps();
 
 	return true;
@@ -471,18 +473,18 @@ void D3DApp::CreateCommandObjects()
 {
 	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
 	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-	ThrowIfFailed(md3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));
-
+	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;//当GPU卡住了地执行方法0表示一直卡住，1表示超时之后清除命令行队列
+	ThrowIfFailed(md3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));//创建命令行队列
+	//mDirectCmdListAlloc为命令列表分配内存
 	ThrowIfFailed(md3dDevice->CreateCommandAllocator(
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf())));
-
+	//创建命令列表
 	ThrowIfFailed(md3dDevice->CreateCommandList(
-		0,
+		0,//多显卡
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		mDirectCmdListAlloc.Get(), // Associated command allocator
-		nullptr,                   // Initial PipelineStateObject
+		nullptr,                   // Initial PipelineStateObject 
 		IID_PPV_ARGS(mCommandList.GetAddressOf())));
 
 	// Start off in a closed state.  This is because the first time we refer 
@@ -499,19 +501,19 @@ void D3DApp::CreateSwapChain()
     DXGI_SWAP_CHAIN_DESC sd;
     sd.BufferDesc.Width = mClientWidth;
     sd.BufferDesc.Height = mClientHeight;
-    sd.BufferDesc.RefreshRate.Numerator = 60;
+    sd.BufferDesc.RefreshRate.Numerator = 60;//刷新率
     sd.BufferDesc.RefreshRate.Denominator = 1;
-    sd.BufferDesc.Format = mBackBufferFormat;
-    sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-    sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+    sd.BufferDesc.Format = mBackBufferFormat;//纹理像素格式
+    sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;//扫描线的规则
+    sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;//缩放
     sd.SampleDesc.Count = m4xMsaaState ? 4 : 1;
     sd.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;//buffer用途
     sd.BufferCount = SwapChainBufferCount;
-    sd.OutputWindow = mhMainWnd;
-    sd.Windowed = true;
+    sd.OutputWindow = mhMainWnd;//输出到什么窗口
+    sd.Windowed = true;//是否支持窗口化
 	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;//允许交换
 
 	// Note: Swap chain uses queue to perform flush.
     ThrowIfFailed(mdxgiFactory->CreateSwapChain(

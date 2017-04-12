@@ -48,6 +48,9 @@
     <ClInclude Include="TraceZLDemoApp.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="ZLSenceRender.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Common\Camera.cpp">
@@ -72,6 +75,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="TraceZLDemoApp.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="TraceZLFramework.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ZLSenceRender.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

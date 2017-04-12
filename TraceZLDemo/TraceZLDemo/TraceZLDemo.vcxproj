@@ -157,6 +157,7 @@
     <ClInclude Include="..\Common\UploadBuffer.h" />
     <ClInclude Include="..\Common\WaveFrontReader.h" />
     <ClInclude Include="TraceZLDemoApp.h" />
+    <ClInclude Include="ZLSenceRender.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Common\Camera.cpp" />
@@ -167,6 +168,8 @@
     <ClCompile Include="..\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\Common\MathHelper.cpp" />
     <ClCompile Include="TraceZLDemoApp.cpp" />
+    <ClCompile Include="TraceZLFramework.cpp" />
+    <ClCompile Include="ZLSenceRender.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
