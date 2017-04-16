@@ -41,12 +41,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 		mCamera.SetPosition(0.0f, 2.0f, -15.0f);
 		mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
+		skyBox= std::make_unique<SkyCubeMap>(md3dDevice.Get(), &mCurrFrameResource);
+		LoadTextures("skyCubeMap1", L"Textures/grasscube1024.dds");
+		skyBox->LoadTextures("sky", L"Textures/snowcube1024.dds", mTextures, texNames, mTextureIndex, mCommandList.Get());
+		skyBox->BuildRenderItems(mCommandList.Get());
+		skyBox->BuildPSOs(mSkyRootSignature,mPSOs, m4xMsaaState, m4xMsaaQuality);
 		//加载天空盒
-		mSkyTexHeapIndex =LoadTextures("skyCubeMap1", L"Textures/grasscube1024.dds");
+		//mSkyTexHeapIndex =LoadTextures("skyCubeMap1", L"Textures/grasscube1024.dds");
+		BuildDescriptorHeaps();
 		//BuildMaterials("skyCubeMap", L"Textures/grasscube1024.dds");
 		BuildRootSignature();
-		BuildDescriptorHeaps();
 		BuildShadersAndInputLayout();
 		BuildShapeGeometry();
 		BuildRenderItems();
@@ -54,9 +58,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		BuildPSOs();
 
 		////////////尝试的东西////
-		////sky = std::make_unique<SkyBox>(md3dDevice.Get());
-		////sky->LoadTextures("skyCubeMap", L"Textures/grasscube1024.dds", mCommandList.Get());
-		////sky->BuildPSOs(mBackBufferFormat, m4xMsaaState, m4xMsaaQuality, mDepthStencilFormat);
+		///*sky = std::make_unique<SkyBox>(md3dDevice.Get());
+		//sky->LoadTextures("skyCubeMap", L"Textures/grasscube1024.dds", mCommandList.Get());
+		//sky->BuildPSOs(mBackBufferFormat, m4xMsaaState, m4xMsaaQuality, mDepthStencilFormat);*/
 		ThrowIfFailed(mCommandList->Close());
 		ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 		mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
@@ -87,11 +91,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 			WaitForSingleObject(eventHandle, INFINITE);
 			CloseHandle(eventHandle);
 		}
-		//sky->Update(mCamera);
+		///sky->Update(mCamera);
 		//AnimateMaterials(gt);
 		UpdateObjectCBs(gt);
-		UpdateMaterialBuffer(gt);
+		//UpdateMaterialBuffer(gt);
 		UpdateMainPassCB(gt);
+		skyBox->Update(mCamera);
 	}
 	void TraceZLDemoApp::Draw(const GameTimer& gt)//重写虚函数，
 	{
@@ -123,23 +128,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 
 		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-		auto passCB = mCurrFrameResource->PassCB->Resource();
-		mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+		//auto passCB = mCurrFrameResource->PassCB->Resource();
+		//mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
-		auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
-		mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
+	//	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
+		//mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
 		CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvDescriptorSize);
-		mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+		mCommandList->SetGraphicsRootDescriptorTable(1, skyTexDescriptor);
 
 		// Bind all the textures used in this scene.  Observe
 		// that we only have to specify the first descriptor in the table.  
 		// The root signature knows how many descriptors are expected in the table.
-		mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-
+		//mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		//skyBox->Draw(mRitemLayer[(int)RenderLayer::Opaque][0],mSkyRootSignature,mPSOs,mCommandList.Get(), mSrvDescriptorHeap);
 		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
-		///sky->Draw(mCommandList.Get());
+		//sky->Draw(mCommandList.Get());
 		// 显示在资源使用状态转换。
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -160,6 +165,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		///同步GPU和CPU
 		///FlushCommandQueue();
 	}
+	void TraceZLDemoApp::AnimateMaterials(const GameTimer & gt)
+	{
+		XMMATRIX view = mCamera.GetView();
+		XMMATRIX proj = mCamera.GetProj();
+		SkyData mSkyData;
+		XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+		XMStoreFloat4x4(&mSkyData.gViewProj, XMMatrixTranspose(viewProj));
+		mSkyData.gEyePosW = mCamera.GetPosition3f();
+		XMStoreFloat4x4(&mSkyData.gWorld, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+		mSkyData.ObjPad0 = 0;
+		//mFrameResources->SkyCB.get()->CopyData(0, mSkyData);
+		auto skyData = mCurrFrameResource->SkyCB.get();
+		skyData->CopyData(0, mSkyData);
+	}
 	void TraceZLDemoApp::UpdateObjectCBs(const GameTimer & gt)
 	{
 		auto currObjectCB = mCurrFrameResource->ObjectCB.get();
@@ -175,7 +194,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 				ObjectConstants objConstants;
 				XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
 				XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-				objConstants.MaterialIndex = e->Mat->MatCBIndex;
+				objConstants.MaterialIndex = 0;// e->Mat->MatCBIndex;
 
 				currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
@@ -264,27 +283,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	/// </summary>
 	void TraceZLDemoApp::BuildRootSignature()
 	{
-		CD3DX12_DESCRIPTOR_RANGE texTable0;
-		texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
-
-		CD3DX12_DESCRIPTOR_RANGE texTable1;
-		texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 1, 0);
+		CD3DX12_DESCRIPTOR_RANGE texTable;
+		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
 
 		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+		CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
 		// Perfomance TIP: Order from most frequent to least frequent.
 		slotRootParameter[0].InitAsConstantBufferView(0);
-		slotRootParameter[1].InitAsConstantBufferView(1);
-		slotRootParameter[2].InitAsShaderResourceView(0, 1);
-		slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
-
+		//slotRootParameter[1].InitAsShaderResourceView(0, 1);
+		slotRootParameter[1].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
 		auto staticSamplers = GetStaticSamplers();
 
 		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter,
 			(UINT)staticSamplers.size(), staticSamplers.data(),
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -300,11 +313,54 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		}
 		ThrowIfFailed(hr);
 
-	    ThrowIfFailed(md3dDevice->CreateRootSignature(
+		ThrowIfFailed(md3dDevice->CreateRootSignature(
 			0,
 			serializedRootSig->GetBufferPointer(),
 			serializedRootSig->GetBufferSize(),
 			IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+
+
+		////CD3DX12_DESCRIPTOR_RANGE texTable0;
+		////texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
+
+		////CD3DX12_DESCRIPTOR_RANGE texTable1;
+		////texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 1, 0);
+
+		////// Root parameter can be a table, root descriptor or root constants.
+		////CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+
+		////// Perfomance TIP: Order from most frequent to least frequent.
+		////slotRootParameter[0].InitAsConstantBufferView(0);
+		////slotRootParameter[1].InitAsConstantBufferView(1);
+		////slotRootParameter[2].InitAsShaderResourceView(0, 1);
+		////slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+		////slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+
+		////auto staticSamplers = GetStaticSamplers();
+
+		////// A root signature is an array of root parameters.
+		////CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+		////	(UINT)staticSamplers.size(), staticSamplers.data(),
+		////	D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+		////// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+		////ComPtr<ID3DBlob> serializedRootSig = nullptr;
+		////ComPtr<ID3DBlob> errorBlob = nullptr;
+		////HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		////	serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+		////if (errorBlob != nullptr)
+		////{
+		////	::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+		////}
+		////ThrowIfFailed(hr);
+
+	 ////   ThrowIfFailed(md3dDevice->CreateRootSignature(
+		////	0,
+		////	serializedRootSig->GetBufferPointer(),
+		////	serializedRootSig->GetBufferSize(),
+		////	IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 	}
 	/// <summary>
 	/// 构建资源堆并填充（贴图）
@@ -380,11 +436,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 			NULL, NULL
 		};
 
-		mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
-		mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
+		mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "VS", "vs_5_1");
+		mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "PS", "ps_5_1");
 
-		mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "VS", "vs_5_1");
-		mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "PS", "ps_5_1");
+		mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "VS", "vs_5_1");
+		mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "PS", "ps_5_1");
 
 		mInputLayout =
 		{
@@ -497,7 +553,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 			mShaders["skyPS"]->GetBufferSize()
 		};
 		ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"])));
-
 	}
 	/// <summary>
 	/// 构建帧资源
@@ -564,7 +619,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 			cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
 			D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
-
+			objCBAddress = mCurrFrameResource->SkyCB->Resource()->GetGPUVirtualAddress();
 			cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
 			cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);

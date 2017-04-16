@@ -156,6 +156,9 @@
     <ClInclude Include="..\Common\MathHelper.h" />
     <ClInclude Include="..\Common\UploadBuffer.h" />
     <ClInclude Include="..\Common\WaveFrontReader.h" />
+    <ClInclude Include="FrameResouce.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="SkyCubeMap.h" />
     <ClInclude Include="TraceZLDemoApp.h" />
     <ClInclude Include="ZLSenceRender.h" />
   </ItemGroup>
@@ -167,9 +170,14 @@
     <ClCompile Include="..\Common\GameTimer.cpp" />
     <ClCompile Include="..\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\Common\MathHelper.cpp" />
+    <ClCompile Include="FrameResouce.cpp" />
+    <ClCompile Include="SkyCubeMap.cpp" />
     <ClCompile Include="TraceZLDemoApp.cpp" />
     <ClCompile Include="TraceZLFramework.cpp" />
     <ClCompile Include="ZLSenceRender.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="TraceZLDemo.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

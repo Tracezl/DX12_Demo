@@ -1,27 +1,4 @@
 #include "ZLSenceRender.h"
-
-FrameResource::FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount)
-{
-	ThrowIfFailed(device->CreateCommandAllocator(
-		D3D12_COMMAND_LIST_TYPE_DIRECT,
-		IID_PPV_ARGS(CmdListAlloc.GetAddressOf())));
-
-	PassCB = std::make_unique<UploadBuffer<PassConstants>>(device, passCount, true);
-	MaterialBuffer = std::make_unique<UploadBuffer<MaterialData>>(device, materialCount, false);
-	ObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(device, objectCount, true);
-}
-
-FrameResource::~FrameResource()
-{
-
-}
-SkyFrameResource::SkyFrameResource(ID3D12Device* device)
-{
-	ThrowIfFailed(device->CreateCommandAllocator(
-		D3D12_COMMAND_LIST_TYPE_DIRECT,
-		IID_PPV_ARGS(CmdListAlloc.GetAddressOf())));
-	SkyCB = std::make_unique<UploadBuffer<SkyData>>(device, 1, true);
-}
 void DrawRenderItems(ID3D12GraphicsCommandList * cmdList, const std::vector<RenderItem*>& ritems, FrameResource* mCurrFrameResource)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
@@ -440,7 +417,7 @@ void SkyBox::BuildRenderItems(ID3D12GraphicsCommandList * mCommandList)
 	auto skyMat = new Material();
 	skyMat->Name = "sky";
 	skyMat->MatCBIndex = 0;
-	skyMat->DiffuseSrvHeapIndex = 3;
+	skyMat->DiffuseSrvHeapIndex = 0;
 	skyMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	skyMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	skyMat->Roughness = 1.0f;

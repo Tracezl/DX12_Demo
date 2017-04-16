@@ -51,6 +51,15 @@
     <ClInclude Include="ZLSenceRender.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="SkyCubeMap.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameResouce.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Common\Camera.cpp">
@@ -83,5 +92,16 @@
     <ClCompile Include="ZLSenceRender.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="SkyCubeMap.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameResouce.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="TraceZLDemo.rc">
+      <Filter>资源文件</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

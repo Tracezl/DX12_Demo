@@ -1,6 +1,8 @@
 #pragma once
 #include "../Common/d3dApp.h"
 #include "../Common/Camera.h"
+#include "SkyCubeMap.h"
+#include "FrameResouce.h"
 #include "ZLSenceRender.h"
 #include <DirectXColors.h>
 using namespace DirectX;
@@ -92,6 +94,7 @@ private:
 	/// 根标签，用来绑定HLSL的资源（buffer)
 	/// </summary>
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+	ComPtr<ID3D12RootSignature> mSkyRootSignature = nullptr;
 	/// <summary>
 	/// 存放SRV的资源堆（贴图）
 	/// </summary>
@@ -138,6 +141,7 @@ private:
 
 	Camera mCamera;
 	std::unique_ptr<SkyBox> sky;
+	std::unique_ptr<SkyCubeMap> skyBox;
 	PassConstants mMainPassCB;
 
 
