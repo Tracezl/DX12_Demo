@@ -41,21 +41,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 		mCamera.SetPosition(0.0f, 2.0f, -15.0f);
 		mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		skyBox= std::make_unique<SkyCubeMap>(md3dDevice.Get(), &mCurrFrameResource);
-		LoadTextures("skyCubeMap1", L"Textures/grasscube1024.dds");
-		skyBox->LoadTextures("sky", L"Textures/snowcube1024.dds", mTextures, texNames, mTextureIndex, mCommandList.Get());
-		skyBox->BuildRenderItems(mCommandList.Get());
-		skyBox->BuildPSOs(mSkyRootSignature,mPSOs, m4xMsaaState, m4xMsaaQuality);
+		skyBox = std::make_unique<SkyCubeMap>(md3dDevice.Get(), &mCurrFrameResource, &mSkyRootSignature, &mPSOs, mCommandList.Get());
+		//LoadTextures("skyCubeMap1", L"Textures/grasscube1024.dds");
+		skyBox->LoadTextures("sky", L"Textures/snowcube1024.dds", mTextures, texNames, mTextureIndex);
+		skyBox->BuildRenderItems();
+		//BuildRootSignature();
+		skyBox->BuildPSOs(m4xMsaaState, m4xMsaaQuality);
 		//加载天空盒
 		//mSkyTexHeapIndex =LoadTextures("skyCubeMap1", L"Textures/grasscube1024.dds");
 		BuildDescriptorHeaps();
 		//BuildMaterials("skyCubeMap", L"Textures/grasscube1024.dds");
-		BuildRootSignature();
-		BuildShadersAndInputLayout();
-		BuildShapeGeometry();
-		BuildRenderItems();
+		//BuildRootSignature();
+		//BuildShadersAndInputLayout();
+		//BuildShapeGeometry();
+		//BuildRenderItems();
 		BuildFrameResources();
-		BuildPSOs();
+		
+		//BuildPSOs();
 
 		////////////尝试的东西////
 		///*sky = std::make_unique<SkyBox>(md3dDevice.Get());
@@ -93,9 +95,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		}
 		///sky->Update(mCamera);
 		//AnimateMaterials(gt);
-		UpdateObjectCBs(gt);
+		//UpdateObjectCBs(gt);
 		//UpdateMaterialBuffer(gt);
-		UpdateMainPassCB(gt);
+		//UpdateMainPassCB(gt);
 		skyBox->Update(mCamera);
 	}
 	void TraceZLDemoApp::Draw(const GameTimer& gt)//重写虚函数，
@@ -126,24 +128,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
 		mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+		//mCommandList->SetGraphicsRootSignature(mSkyRootSignature.Get());
 
-		//auto passCB = mCurrFrameResource->PassCB->Resource();
-		//mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+		/*auto passCB = mCurrFrameResource->PassCB->Resource();
+		mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
-	//	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
-		//mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
-
-		CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvDescriptorSize);
-		mCommandList->SetGraphicsRootDescriptorTable(1, skyTexDescriptor);
+		auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
+		mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
+*/
+		//CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		//skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvDescriptorSize);
+		//mCommandList->SetGraphicsRootDescriptorTable(1, skyTexDescriptor);
 
 		// Bind all the textures used in this scene.  Observe
 		// that we only have to specify the first descriptor in the table.  
 		// The root signature knows how many descriptors are expected in the table.
-		//mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		//skyBox->Draw(mRitemLayer[(int)RenderLayer::Opaque][0],mSkyRootSignature,mPSOs,mCommandList.Get(), mSrvDescriptorHeap);
-		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+		///mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		
+		//auto passCB = (mCurrFrameResource)->SkyCB->Resource();
+		//mCommandList->SetGraphicsRootConstantBufferView(0, passCB->GetGPUVirtualAddress());
+		skyBox->Draw(mSrvDescriptorHeap);
+		//DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 		//sky->Draw(mCommandList.Get());
 		// 显示在资源使用状态转换。
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -317,50 +322,50 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 			0,
 			serializedRootSig->GetBufferPointer(),
 			serializedRootSig->GetBufferSize(),
-			IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+			IID_PPV_ARGS((mRootSignature).GetAddressOf())));
 
 
-		////CD3DX12_DESCRIPTOR_RANGE texTable0;
-		////texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
+		//CD3DX12_DESCRIPTOR_RANGE texTable0;
+		//texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
 
-		////CD3DX12_DESCRIPTOR_RANGE texTable1;
-		////texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 1, 0);
+		//CD3DX12_DESCRIPTOR_RANGE texTable1;
+		//texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 1, 0);
 
-		////// Root parameter can be a table, root descriptor or root constants.
-		////CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+		//// Root parameter can be a table, root descriptor or root constants.
+		//CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 
-		////// Perfomance TIP: Order from most frequent to least frequent.
-		////slotRootParameter[0].InitAsConstantBufferView(0);
-		////slotRootParameter[1].InitAsConstantBufferView(1);
-		////slotRootParameter[2].InitAsShaderResourceView(0, 1);
-		////slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
-		////slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+		//// Perfomance TIP: Order from most frequent to least frequent.
+		//slotRootParameter[0].InitAsConstantBufferView(0);
+		//slotRootParameter[1].InitAsConstantBufferView(1);
+		//slotRootParameter[2].InitAsShaderResourceView(0, 1);
+		//slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+		//slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
 
-		////auto staticSamplers = GetStaticSamplers();
+		//auto staticSamplers = GetStaticSamplers();
 
-		////// A root signature is an array of root parameters.
-		////CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
-		////	(UINT)staticSamplers.size(), staticSamplers.data(),
-		////	D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+		//// A root signature is an array of root parameters.
+		//CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+		//	(UINT)staticSamplers.size(), staticSamplers.data(),
+		//	D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-		////// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
-		////ComPtr<ID3DBlob> serializedRootSig = nullptr;
-		////ComPtr<ID3DBlob> errorBlob = nullptr;
-		////HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-		////	serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+		//// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+		//ComPtr<ID3DBlob> serializedRootSig = nullptr;
+		//ComPtr<ID3DBlob> errorBlob = nullptr;
+		//HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		//	serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
-		////if (errorBlob != nullptr)
-		////{
-		////	::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-		////}
-		////ThrowIfFailed(hr);
+		//if (errorBlob != nullptr)
+		//{
+		//	::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+		//}
+		//ThrowIfFailed(hr);
 
-	 ////   ThrowIfFailed(md3dDevice->CreateRootSignature(
-		////	0,
-		////	serializedRootSig->GetBufferPointer(),
-		////	serializedRootSig->GetBufferSize(),
-		////	IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+	 //   ThrowIfFailed(md3dDevice->CreateRootSignature(
+		//	0,
+		//	serializedRootSig->GetBufferPointer(),
+		//	serializedRootSig->GetBufferSize(),
+		//	IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 	}
 	/// <summary>
 	/// 构建资源堆并填充（贴图）
@@ -436,8 +441,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 			NULL, NULL
 		};
 
-		mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "VS", "vs_5_1");
-		mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "PS", "ps_5_1");
+		mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
+		mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
 
 		mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "VS", "vs_5_1");
 		mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "PS", "ps_5_1");
@@ -499,49 +504,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	/// </summary>
 	void TraceZLDemoApp::BuildPSOs()
 	{
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
-		//
-		// PSO for opaque objects.
-		//
-		ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
-		opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
-		opaquePsoDesc.pRootSignature = mRootSignature.Get();
-		opaquePsoDesc.VS =
-		{
-			reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
-			mShaders["standardVS"]->GetBufferSize()
-		};
-		opaquePsoDesc.PS =
-		{
-			reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
-			mShaders["opaquePS"]->GetBufferSize()
-		};
-		opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-		opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-		opaquePsoDesc.SampleMask = UINT_MAX;
-		opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		opaquePsoDesc.NumRenderTargets = 1;
-		opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
-		opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-		opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
-		opaquePsoDesc.DSVFormat = mDepthStencilFormat;
-		ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
-
-		//
-		// PSO for sky.
-		//
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = opaquePsoDesc;
-
-		// The camera is inside the sky sphere, so just turn off culling.
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc;
+		ZeroMemory(&skyPsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+		skyPsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+		skyPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		skyPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+		skyPsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+		skyPsoDesc.SampleMask = UINT_MAX;
+		skyPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		skyPsoDesc.NumRenderTargets = 1;
+		skyPsoDesc.RTVFormats[0] = mBackBufferFormat;
+		skyPsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+		skyPsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+		skyPsoDesc.DSVFormat = mDepthStencilFormat;
 		skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-
-		// Make sure the depth function is LESS_EQUAL and not just LESS.  
-		// Otherwise, the normalized depth values at z = 1 (NDC) will 
-		// fail the depth test if the depth buffer was cleared to 1.
 		skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-		skyPsoDesc.pRootSignature = mRootSignature.Get();
+		skyPsoDesc.pRootSignature = (mRootSignature).Get();
 		skyPsoDesc.VS =
 		{
 			reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
@@ -552,7 +531,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 			reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
 			mShaders["skyPS"]->GetBufferSize()
 		};
-		ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"])));
+		ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&(mPSOs)["sky"])));
 	}
 	/// <summary>
 	/// 构建帧资源
@@ -561,8 +540,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	{
 		for (int i = 0; i < gNumFrameResources; ++i)
 		{
+			int ritemsNum = 1;
+			if (mAllRitems.size()>0)
+			{
+				ritemsNum = mAllRitems.size();
+			}
+			int materialNum = 1;
+			if (mMaterials.size()>0)
+			{
+				materialNum = mMaterials.size();
+			}
 			mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-				1, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));
+				1, (UINT)ritemsNum, (UINT)materialNum));
 		}
 	}
 	/// <summary>
@@ -619,8 +608,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 			cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
 			D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
-			objCBAddress = mCurrFrameResource->SkyCB->Resource()->GetGPUVirtualAddress();
-			cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+			//cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+			auto passCB = (mCurrFrameResource)->SkyCB->Resource();
+			mCommandList->SetGraphicsRootConstantBufferView(0, passCB->GetGPUVirtualAddress());
+
 
 			cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 		}

@@ -1,6 +1,8 @@
 #include "SkyCubeMap.h"
 
-SkyCubeMap::SkyCubeMap(ID3D12Device * md3dDevice, FrameResource ** mFrameResources)
+SkyCubeMap::SkyCubeMap(ID3D12Device * md3dDevice, FrameResource ** mFrameResources, ComPtr<ID3D12RootSignature>* mRootSignature, 
+	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>>* mPSOs, ID3D12GraphicsCommandList * mCommandList
+	):mPSOs(mPSOs), mCommandList(mCommandList), mRootSignature(mRootSignature)
 {
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	this->md3dDevice = md3dDevice;
@@ -14,7 +16,7 @@ SkyCubeMap::~SkyCubeMap()
 void SkyCubeMap::LoadTextures(std::string name, std::wstring Filename, 
 	std::unordered_map<std::string, std::unique_ptr<Texture>>& mTextures,
 	std::vector<std::string>& texNames,
-	UINT& mTextureIndex, ID3D12GraphicsCommandList * mCommandList)
+	UINT& mTextureIndex)
 {
 	auto texMap = std::make_unique<Texture>();
 	texMap->Name = name;
@@ -31,9 +33,9 @@ void SkyCubeMap::LoadTextures(std::string name, std::wstring Filename,
 	//mFrameResources = new SkyFrameResource(md3dDevice);
 }
 
-void SkyCubeMap::BuildPSOs(ComPtr<ID3D12RootSignature>& mRootSignature,std::unordered_map<std::string, ComPtr<ID3D12PipelineState>>& mPSOs, bool m4xMsaaState, UINT m4xMsaaQuality, DXGI_FORMAT mBackBufferFormat, DXGI_FORMAT mDepthStencilFormat)
+void SkyCubeMap::BuildPSOs(bool m4xMsaaState, UINT m4xMsaaQuality, DXGI_FORMAT mBackBufferFormat, DXGI_FORMAT mDepthStencilFormat)
 {
-	BuildRootSignature(mRootSignature);
+	BuildRootSignature();
 	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\mSky.hlsl", nullptr, "PS", "ps_5_1");
 	mInputLayout =
@@ -43,29 +45,10 @@ void SkyCubeMap::BuildPSOs(ComPtr<ID3D12RootSignature>& mRootSignature,std::unor
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc;
 
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc;
 	ZeroMemory(&skyPsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 	skyPsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
-
-	// The camera is inside the sky sphere, so just turn off culling.
-	skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-
-	// Make sure the depth function is LESS_EQUAL and not just LESS.  
-	// Otherwise, the normalized depth values at z = 1 (NDC) will 
-	// fail the depth test if the depth buffer was cleared to 1.
-	skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-	skyPsoDesc.pRootSignature = mRootSignature.Get();
-	skyPsoDesc.VS =
-	{
-		reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
-		mShaders["skyVS"]->GetBufferSize()
-	};
-	skyPsoDesc.PS =
-	{
-		reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
-		mShaders["skyPS"]->GetBufferSize()
-	};
 	skyPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	skyPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	skyPsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
@@ -76,8 +59,57 @@ void SkyCubeMap::BuildPSOs(ComPtr<ID3D12RootSignature>& mRootSignature,std::unor
 	skyPsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	skyPsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	skyPsoDesc.DSVFormat = mDepthStencilFormat;
-	ThrowIfFailed(
-		md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky1"])));
+	skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	skyPsoDesc.pRootSignature = (*mRootSignature).Get();
+	skyPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
+		mShaders["skyVS"]->GetBufferSize()
+	};
+	skyPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
+		mShaders["skyPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&(*mPSOs)["sky"])));
+
+
+	//D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc;
+
+	//ZeroMemory(&skyPsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+	//skyPsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+
+	//// The camera is inside the sky sphere, so just turn off culling.
+	//skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+	//// Make sure the depth function is LESS_EQUAL and not just LESS.  
+	//// Otherwise, the normalized depth values at z = 1 (NDC) will 
+	//// fail the depth test if the depth buffer was cleared to 1.
+	//skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	//skyPsoDesc.pRootSignature = (*mRootSignature).Get();
+	//skyPsoDesc.VS =
+	//{
+	//	reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
+	//	mShaders["skyVS"]->GetBufferSize()
+	//};
+	//skyPsoDesc.PS =
+	//{
+	//	reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
+	//	mShaders["skyPS"]->GetBufferSize()
+	//};
+	//skyPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	//skyPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	//skyPsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	//skyPsoDesc.SampleMask = UINT_MAX;
+	//skyPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	//skyPsoDesc.NumRenderTargets = 1;
+	//skyPsoDesc.RTVFormats[0] = mBackBufferFormat;
+	//skyPsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	//skyPsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	//skyPsoDesc.DSVFormat = mDepthStencilFormat;
+	//ThrowIfFailed(
+	//md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&(*mPSOs)["sky1"])));
 }
 
 void SkyCubeMap::Update(Camera mCamera)
@@ -95,15 +127,15 @@ void SkyCubeMap::Update(Camera mCamera)
 	skyData->CopyData(0, mSkyData);
 }
 
-void SkyCubeMap::Draw(RenderItem* mRitem,ComPtr<ID3D12RootSignature>& mRootSignature,std::unordered_map<std::string, ComPtr<ID3D12PipelineState>>& mPSOs,ID3D12GraphicsCommandList * mCommandList, ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap)
+void SkyCubeMap::Draw(ComPtr<ID3D12DescriptorHeap>& mSrvDescriptorHeap)
 {
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCommandList->SetGraphicsRootSignature((*mRootSignature).Get());
 	auto passCB = (*mFrameResources)->SkyCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(0, passCB->GetGPUVirtualAddress());
 	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvDescriptorSize);
+	//skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(1, skyTexDescriptor);
-	mCommandList->SetPipelineState(mPSOs["sky1"].Get());
+	mCommandList->SetPipelineState((*mPSOs)["sky"].Get());
 
 	auto ri = mRitem;
 	mCommandList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
@@ -117,7 +149,7 @@ void SkyCubeMap::Draw(RenderItem* mRitem,ComPtr<ID3D12RootSignature>& mRootSigna
 
 }
 
-void SkyCubeMap::BuildRootSignature(ComPtr<ID3D12RootSignature>& mRootSignature)
+void SkyCubeMap::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
@@ -153,11 +185,11 @@ void SkyCubeMap::BuildRootSignature(ComPtr<ID3D12RootSignature>& mRootSignature)
 		0,
 		serializedRootSig->GetBufferPointer(),
 		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+		IID_PPV_ARGS((*mRootSignature).GetAddressOf())));
 
 }
 
-void SkyCubeMap::BuildRenderItems(ID3D12GraphicsCommandList * mCommandList)
+void SkyCubeMap::BuildRenderItems()
 {
 	//º”‘ÿ√Ê∆¨
 	GeometryGenerator geoGen;
