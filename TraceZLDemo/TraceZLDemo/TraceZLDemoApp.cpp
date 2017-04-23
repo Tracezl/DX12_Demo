@@ -41,15 +41,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 		mCamera.SetPosition(0.0f, 2.0f, -15.0f);
 		mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		skyBox = std::make_unique<SkyCubeMap>(md3dDevice.Get(), &mCurrFrameResource, &mSkyRootSignature, &mPSOs, mCommandList.Get());
+		skyBox = std::make_unique<SkyCubeMap>(md3dDevice.Get(), mCommandList.Get());
+		skyBox->Init("sky", L"Textures/snowcube1024.dds", mTextures, texNames, mTextureIndex, m4xMsaaState, m4xMsaaQuality);
 		//LoadTextures("skyCubeMap1", L"Textures/grasscube1024.dds");
-		skyBox->LoadTextures("sky", L"Textures/snowcube1024.dds", mTextures, texNames, mTextureIndex);
-		skyBox->BuildRenderItems();
 		//BuildRootSignature();
-		skyBox->BuildPSOs(m4xMsaaState, m4xMsaaQuality);
 		//加载天空盒
 		//mSkyTexHeapIndex =LoadTextures("skyCubeMap1", L"Textures/grasscube1024.dds");
 		BuildDescriptorHeaps();
+		
 		//BuildMaterials("skyCubeMap", L"Textures/grasscube1024.dds");
 		//BuildRootSignature();
 		//BuildShadersAndInputLayout();
@@ -59,14 +58,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 		
 		//BuildPSOs();
 
-		////////////尝试的东西////
-		///*sky = std::make_unique<SkyBox>(md3dDevice.Get());
-		//sky->LoadTextures("skyCubeMap", L"Textures/grasscube1024.dds", mCommandList.Get());
-		//sky->BuildPSOs(mBackBufferFormat, m4xMsaaState, m4xMsaaQuality, mDepthStencilFormat);*/
 		ThrowIfFailed(mCommandList->Close());
 		ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 		mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
 		// Wait until initialization is complete.
 		FlushCommandQueue();
 		return true;
